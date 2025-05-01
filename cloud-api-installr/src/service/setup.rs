@@ -1,6 +1,11 @@
-use std::{ffi::OsStr, fs, os::windows::ffi::OsStrExt, path::Path};
+use std::{fs, path::Path};
 
+#[cfg(windows)]
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
+
+#[cfg(windows)]
 use windows::core::PCWSTR;
+
 #[cfg(windows)]
 use windows::Win32::Storage::FileSystem::{SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN};
 
@@ -24,6 +29,12 @@ pub fn create_application_data_dir(root: &str) -> anyhow::Result<String> {
     let installr_dir = format!("{}", root);
     fs::create_dir_all(&installr_dir)?; // Create the directory if it doesn't exist
 
+    let extensions_dir = format!("{}\\extensions", installr_dir);
+    let package_cache = format!("{}\\package-cache", installr_dir);
+
+    fs::create_dir_all(&extensions_dir)?;
+    fs::create_dir_all(&package_cache)?;
+
     #[cfg(windows)]
     set_hidden_attribute_windows(&installr_dir)?; // Set the directory as hidden on Windows
 
@@ -45,6 +56,7 @@ fn set_hidden_attribute_windows(path: &str) -> std::io::Result<()> {
     }
 }
 
+#[cfg(windows)]
 fn str_to_pcwstr(s: &str) -> PCWSTR {
     let wide: Vec<u16> = OsStr::new(s)
         .encode_wide()
