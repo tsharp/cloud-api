@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "cloud-api-installr"
+]
+
+[workspace.dependencies]
+actix-web = "4"
+
+# FOR MIDDLEWARE
+actix-service = "2"
+actix-http = "3"
+actix-utils = "3"
+futures-util = "0.3"
+pin-project-lite = "0.2"
+
+# Related
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
