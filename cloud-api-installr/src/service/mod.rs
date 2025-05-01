@@ -11,8 +11,9 @@ use tokio_util::sync::CancellationToken;
 use std::{fs, path::Path, path::PathBuf};
 use std::fs::File;
 use std::io::BufReader;
-use crate::config::{ExtensionRunLog, ExtensionSpec, InstallrConfig};
+use crate::config::{ExtensionSpec, ExtensionStatus, InstallrConfig};
 use crate::constants;
+use crate::extension::ExtensionRunLog;
 use zip::ZipArchive;
 
 mod setup;
@@ -115,26 +116,25 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
 async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
     for extension in config.get_extensions() {
-        tracing::info!("Reconciling extension: {} (version: {})", extension.name, extension.version);
+        tracing::info!("Reconciling extension: {} (version: {})", extension.get_package_id(), extension.version);
 
-        if !extension.is_enabled ||
-            extension.uninstall.unwrap_or(false) == true {
-            tracing::info!("Extension {} is disabled.", extension.name);
+        if  extension.status == ExtensionStatus::Disabled {
+            tracing::info!("Extension {} is disabled.", extension.get_package_id());
             continue;
         }
 
         if needs_update(extension).await? {
-            tracing::info!("Extension {} needs update or install.", extension.name);
+            tracing::info!("Extension {} needs update or install.", extension.get_package_id());
             let result = install_or_update_extension(extension, config.get_package_endpoint(), config.get_package_cache()).await;
             
             if let Err(e) = result {
-                tracing::error!("Failed to install/update extension {}: {:?}", extension.name, e);
+                tracing::error!("Failed to install/update extension {}: {:?}", extension.get_package_id(), e);
             } else {
-                tracing::info!("Extension {} installed/updated successfully.", extension.name);
+                tracing::info!("Extension {} installed/updated successfully.", extension.get_package_id());
             }
 
         } else {
-            tracing::info!("Extension {} is up-to-date.", extension.name);
+            tracing::info!("Extension {} is up-to-date.", extension.get_package_id());
         }
     }
 
@@ -148,12 +148,12 @@ async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
 
 async fn uninstall_extensions(config: &InstallrConfig) -> Result<()> {
     for extension in config.get_extensions() {
-        if extension.uninstall.unwrap_or(false) {
-            let ext_dir = format!("{}\\extensions\\{}", constants::DEFAULT_CLOUD_API_ROOT_DIR, extension.name);
+        if extension.status == ExtensionStatus::Uninstalling {
+            let ext_dir = format!("{}\\extensions\\{}", constants::DEFAULT_CLOUD_API_ROOT_DIR, extension.get_package_id());
             tracing::info!("Uninstalling extension: {}", ext_dir);
 
             if !Path::new(&ext_dir).exists() {
-                tracing::warn!("Extension {} not found for uninstallation.", extension.name);
+                tracing::warn!("Extension {} not found for uninstallation.", extension.get_package_id());
                 continue;
             }
 
@@ -171,13 +171,13 @@ async fn uninstall_extensions(config: &InstallrConfig) -> Result<()> {
 
                 tracing::info!("Uninstall script output: {:?}", output);
             } else {
-                tracing::warn!("No uninstall script found for extension: {}", extension.name);
+                tracing::warn!("No uninstall script found for extension: {}", extension.get_package_id());
             }
 
             if fs::remove_dir_all(&ext_dir).is_err() {
                 tracing::error!("Failed to remove extension directory: {}", ext_dir);
             } else {
-                tracing::info!("Extension {} uninstalled successfully.", extension.name);
+                tracing::info!("Extension {} uninstalled successfully.", extension.get_package_id());
             }
         }
     }
@@ -193,7 +193,7 @@ fn cleanup_extension_dir(config: &InstallrConfig) -> Result<()> {
         .collect();
 
     let config_extensions: Vec<String> = config.get_extensions().iter()
-        .map(|ext| ext.name.clone())
+        .map(|ext| ext.get_package_id())
         .collect();
 
     let extensions_to_remove: Vec<String> = installed_extensions.into_iter()
@@ -215,11 +215,11 @@ fn cleanup_extension_dir(config: &InstallrConfig) -> Result<()> {
 }
 
 async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {    
-    let extension_dir = format!("C:\\cloud-api\\extensions\\{}", extension.name);
+    let extension_dir = format!("C:\\cloud-api\\extensions\\{}", extension.get_package_id());
     let version_file = PathBuf::from(&extension_dir).join("VERSION");
 
     if !version_file.exists() {
-        tracing::info!("Extension {} not installed.", extension.name);
+        tracing::info!("Extension {} not installed.", extension.get_package_id());
         return Ok(true);
     }
 
@@ -227,7 +227,7 @@ async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {
     let version_hash = hash_extension_spec(extension)?;
 
     if current_version_hash != version_hash {
-        tracing::info!("Extension {} version mismatch: current {}, desired {}", extension.name, current_version_hash, version_hash);
+        tracing::info!("Extension {} version mismatch: current {}, desired {}", extension.get_package_id(), current_version_hash, version_hash);
         return Ok(true);
     }
 
@@ -235,13 +235,13 @@ async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {
 }
 
 pub async fn install_or_update_extension(extension: &ExtensionSpec, endpoint: &str, cache_dir: &str) -> Result<()> {
-    let extension_pkg = format!("{}-{}.zip", extension.name, extension.version);
+    let extension_pkg = format!("{}-{}.extpkg", extension.get_package_id(), extension.version);
     let package_path = download_package(endpoint, &extension_pkg, cache_dir).await?;
 
     let target_dir = format!(
         "{}\\extensions\\{}\\v{}",
         constants::DEFAULT_CLOUD_API_ROOT_DIR,
-        extension.name,
+        extension.get_package_id(),
         extension.version
     );
 
@@ -284,7 +284,7 @@ pub async fn install_or_update_extension(extension: &ExtensionSpec, endpoint: &s
     let version_path = PathBuf::from(format!(
         "{}\\extensions\\{}",
         constants::DEFAULT_CLOUD_API_ROOT_DIR,
-        extension.name
+        extension.get_package_id()
     )).join("VERSION");
 
     let version_hash = hash_extension_spec(extension)?;

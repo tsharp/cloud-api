@@ -1,6 +1,7 @@
 mod config;
 mod constants;
 mod service;
+mod extension;
 
 use anyhow::Result;
 use service::run_service;
