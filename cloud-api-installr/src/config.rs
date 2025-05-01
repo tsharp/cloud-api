@@ -1,4 +1,5 @@
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::constants;
@@ -7,7 +8,7 @@ use crate::constants;
 pub struct InstallrConfig {
     pub package_endpoint: String,
     pub package_cache: String,
-    pub extensions: Vec<ExtensionSpec>,
+    pub extensions: Vec<ExtensionState>,
 }
 
 
@@ -24,22 +25,24 @@ pub enum ExtensionStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ExtensionSpec {
+pub struct ExtensionState {
+  pub uid: String,
   pub id: String,
   pub publisher: Option<String>,
   pub version: String,
-  pub timestamp: String,
   pub config: Option<String>,
   pub status: ExtensionStatus,
+  pub modified_at: String,
 }
 
-impl  ExtensionSpec {
-    pub fn new(id: &str, version: &str, timestamp: &str) -> Self {
-        ExtensionSpec {
+impl  ExtensionState {
+    pub fn new(uid: &str, id: &str, version: &str) -> Self {
+        ExtensionState {
+            uid: uid.to_string(),
             id: id.to_string(),
             publisher: None,
             version: version.to_string(),
-            timestamp: timestamp.to_string(),
+            modified_at: Utc::now().to_rfc3339(),
             config: None,
             status: ExtensionStatus::NotInstalled,
         }
@@ -81,7 +84,15 @@ impl InstallrConfig {
         &self.package_cache
     }
 
-    pub fn get_extensions(&self) -> &Vec<ExtensionSpec> {
+    pub fn get_extensions(&self) -> &Vec<ExtensionState> {
         &self.extensions
+    }
+
+    pub fn add_extension(&mut self, extension: ExtensionState) {
+        self.extensions.push(extension);
+    }
+
+    pub fn remove_extension(&mut self, uid: &str) {
+        self.extensions.retain(|ext| ext.uid != uid);
     }
 }

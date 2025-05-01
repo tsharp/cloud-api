@@ -11,9 +11,10 @@ use tokio_util::sync::CancellationToken;
 use std::{fs, path::Path, path::PathBuf};
 use std::fs::File;
 use std::io::BufReader;
-use crate::config::{ExtensionSpec, ExtensionStatus, InstallrConfig};
+use crate::config::{ExtensionState, ExtensionStatus, InstallrConfig};
 use crate::constants;
 use crate::extension::ExtensionRunLog;
+use crate::metaserver::client::MetaServerClient;
 use zip::ZipArchive;
 
 mod setup;
@@ -83,6 +84,13 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
     Ok(())
 }
 
+async fn pull_latest_extension_states(config_file: &str) -> Result<Vec<ExtensionState>> {
+    MetaServerClient::new(constants::CLOUD_METADATA_V1_ENDPOINT)
+        .get_extensions()
+        .await
+        .context("Failed to pull latest extension data")
+}
+
 async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_token: CancellationToken) -> Result<()> {
     let path = Path::new(path).to_path_buf();
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
@@ -95,11 +103,34 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
         interval.tick().await;
 
+        let extension_states = pull_latest_extension_states(path.as_path().to_str().unwrap())
+            .await;
+
         match std::fs::read_to_string(&path) {
             Ok(contents) => {
                 match serde_json::from_str::<InstallrConfig>(&contents) {
                     Ok(config) => {
                         tracing::info!("Reloaded config. Starting reconciliation...");
+                        let mut config = config;
+
+                        if extension_states.is_ok() {
+                            tracing::info!("Updating config with latest extension states...");
+                            
+                            for state in extension_states.unwrap() {
+                                config.remove_extension(state.uid.as_str());
+                                config.add_extension(state);
+                            }
+
+                            // Save updated config
+                            let updated_config = serde_json::to_string_pretty(&config)?;
+                            fs::write(&path, updated_config)?;
+                            tracing::info!("Updated config file with latest extension states.");
+                        }
+                        else
+                        {
+                            tracing::warn!("Failed to pull latest extension states: {:?}", extension_states);
+                        }
+
                         reconcile_extensions(&config).await?;
                     }
                     Err(e) => {
@@ -116,12 +147,7 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
 async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
     for extension in config.get_extensions() {
-        tracing::info!("Reconciling extension: {} (version: {})", extension.get_package_id(), extension.version);
-
-        if  extension.status == ExtensionStatus::Disabled {
-            tracing::info!("Extension {} is disabled.", extension.get_package_id());
-            continue;
-        }
+        tracing::info!(">> Reconciling extension: {} (version: {})", extension.get_package_id(), extension.version);
 
         if needs_update(extension).await? {
             tracing::info!("Extension {} needs update or install.", extension.get_package_id());
@@ -132,89 +158,35 @@ async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
             } else {
                 tracing::info!("Extension {} installed/updated successfully.", extension.get_package_id());
             }
-
-        } else {
-            tracing::info!("Extension {} is up-to-date.", extension.get_package_id());
         }
     }
 
-    uninstall_extensions(config).await?;
-    cleanup_extension_dir(config)?;
+    crate::extension::uninstall::uninstall_extensions(config).await?;
 
     tracing::info!("Reconciliation complete.");
 
     Ok(())
 }
 
-async fn uninstall_extensions(config: &InstallrConfig) -> Result<()> {
-    for extension in config.get_extensions() {
-        if extension.status == ExtensionStatus::Uninstalling {
-            let ext_dir = format!("{}\\extensions\\{}", constants::DEFAULT_CLOUD_API_ROOT_DIR, extension.get_package_id());
-            tracing::info!("Uninstalling extension: {}", ext_dir);
 
-            if !Path::new(&ext_dir).exists() {
-                tracing::warn!("Extension {} not found for uninstallation.", extension.get_package_id());
-                continue;
-            }
 
-            // === One-off PowerShell execution ===
-            let ps_script = Path::new(&ext_dir).join(format!("v{}", extension.version)).join("uninstall.ps1");
-
-            if ps_script.exists() {
-                let output = Command::new("pwsh")
-                    .arg("-NoProfile")
-                    .arg("-ExecutionPolicy").arg("Bypass")
-                    .arg("-File").arg(ps_script)
-                    .output()
-                    .await
-                    .context("Failed to execute PowerShell script")?;
-
-                tracing::info!("Uninstall script output: {:?}", output);
-            } else {
-                tracing::warn!("No uninstall script found for extension: {}", extension.get_package_id());
-            }
-
-            if fs::remove_dir_all(&ext_dir).is_err() {
-                tracing::error!("Failed to remove extension directory: {}", ext_dir);
-            } else {
-                tracing::info!("Extension {} uninstalled successfully.", extension.get_package_id());
-            }
+async fn needs_update(extension: &ExtensionState) -> Result<bool> {   
+    match extension.status {
+        ExtensionStatus::Uninstalling => {
+            tracing::info!("Extension {} is currently uninstalling.", extension.get_package_id());
+            return Ok(false);
         }
+        ExtensionStatus::Uninstalled => {
+            tracing::info!("Extension {} is currently uninstalled.", extension.get_package_id());
+            return Ok(false);
+        }
+        ExtensionStatus::Disabled => {
+            tracing::info!("Extension {} is currently disabled.", extension.get_package_id());
+            return Ok(false);
+        }
+        _ => {}
     }
 
-    Ok(())
-}
-
-fn cleanup_extension_dir(config: &InstallrConfig) -> Result<()> {
-    // Check for any extensions that are not in the config but are installed
-    let installed_extensions: Vec<String> = fs::read_dir(format!("{}\\extensions", constants::DEFAULT_CLOUD_API_ROOT_DIR))?
-        .filter_map(|entry| entry.ok())
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .collect();
-
-    let config_extensions: Vec<String> = config.get_extensions().iter()
-        .map(|ext| ext.get_package_id())
-        .collect();
-
-    let extensions_to_remove: Vec<String> = installed_extensions.into_iter()
-        .filter(|ext| !config_extensions.contains(ext))
-        .collect();
-
-    for ext in extensions_to_remove {
-        let ext_dir = format!("{}\\extensions\\{}", constants::DEFAULT_CLOUD_API_ROOT_DIR, ext);
-        tracing::info!("Removing extension: {}", ext_dir);
-
-        if fs::remove_dir_all(&ext_dir).is_err() {
-            tracing::error!("Failed to remove extension directory: {}", ext_dir);
-        } else {
-            tracing::info!("Extension {} removed successfully.", ext);
-        }
-    }
-
-    Ok(())
-}
-
-async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {    
     let extension_dir = format!("C:\\cloud-api\\extensions\\{}", extension.get_package_id());
     let version_file = PathBuf::from(&extension_dir).join("VERSION");
 
@@ -224,7 +196,7 @@ async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {
     }
 
     let current_version_hash = fs::read_to_string(version_file)?.trim().to_string();
-    let version_hash = hash_extension_spec(extension)?;
+    let version_hash = hash_extension_state(extension)?;
 
     if current_version_hash != version_hash {
         tracing::info!("Extension {} version mismatch: current {}, desired {}", extension.get_package_id(), current_version_hash, version_hash);
@@ -234,7 +206,7 @@ async fn needs_update(extension: &ExtensionSpec) -> Result<bool> {
     Ok(false)
 }
 
-pub async fn install_or_update_extension(extension: &ExtensionSpec, endpoint: &str, cache_dir: &str) -> Result<()> {
+pub async fn install_or_update_extension(extension: &ExtensionState, endpoint: &str, cache_dir: &str) -> Result<()> {
     let extension_pkg = format!("{}-{}.extpkg", extension.get_package_id(), extension.version);
     let package_path = download_package(endpoint, &extension_pkg, cache_dir).await?;
 
@@ -287,7 +259,7 @@ pub async fn install_or_update_extension(extension: &ExtensionSpec, endpoint: &s
         extension.get_package_id()
     )).join("VERSION");
 
-    let version_hash = hash_extension_spec(extension)?;
+    let version_hash = hash_extension_state(extension)?;
 
     fs::write(&version_path, version_hash)?;
 
@@ -338,7 +310,7 @@ async fn extract_package(zip_path: &PathBuf, dest_dir: &str) -> Result<()> {
     Ok(())
 }
 
-fn hash_extension_spec(spec: &ExtensionSpec) -> Result<String> {
+fn hash_extension_state(spec: &ExtensionState) -> Result<String> {
     // Canonical JSON serialization
     let json = serde_json::to_string(spec)?;
 
