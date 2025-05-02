@@ -1,7 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "cloud-api-installr"
+    "cloudapi-installr",
+    "cloudapi-server",
+    "cloudapi-sdk"
 ]
 
 [workspace.dependencies]

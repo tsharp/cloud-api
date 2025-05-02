@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
+use cloudapi_sdk::model::extension::{ExtensionState, ExtensionStatus};
 use tokio::process::Command;
 use std::path::PathBuf;
 use std::{fs, path::Path};
-use crate::config::{ExtensionState, ExtensionStatus, InstallrConfig};
+use crate::config::InstallrConfig;
 use crate::constants;
 
 pub async fn uninstall_extensions(config: &InstallrConfig) -> Result<()> {

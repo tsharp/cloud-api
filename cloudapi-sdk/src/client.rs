@@ -1,16 +1,16 @@
 use reqwest::Client;
-use crate::config::ExtensionState;
 
-use super::error::MetaServerError;
-use super::model::MetadataResponse;
+use crate::model::{compute::MetadataResponse, extension::ExtensionState};
+
+use super::error::CloudApiError;
 
 #[derive(Debug, Clone)]
-pub struct MetaServerClient {
+pub struct CloudApiClient {
     endpoint: String,
     client: Client,
 }
 
-impl MetaServerClient {
+impl CloudApiClient {
     pub fn new(endpoint: impl Into<String>) -> Self {
         Self {
             endpoint: endpoint.into(),
@@ -22,7 +22,7 @@ impl MetaServerClient {
         format!("{}/cloud-api/v1/metadata", self.endpoint)
     }
 
-    pub async fn get_metadata(&self) -> Result<MetadataResponse, MetaServerError> {
+    pub async fn get_metadata(&self) -> Result<MetadataResponse, CloudApiError> {
         let url = format!("{}", self.get_metadata_url());
         let res = self.client
             .get(&url)
@@ -36,7 +36,7 @@ impl MetaServerClient {
         Ok(res)
     }
 
-    pub async fn get_extensions(&self) -> Result<Vec<ExtensionState>, MetaServerError> {
+    pub async fn get_extensions(&self) -> Result<Vec<ExtensionState>, CloudApiError> {
         let url = format!("{}/extensions", self.get_metadata_url());
         let res = self.client
             .get(&url)

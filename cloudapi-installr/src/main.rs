@@ -2,8 +2,6 @@ mod config;
 mod constants;
 mod service;
 mod extension;
-mod metaserver;
-
 use anyhow::Result;
 use service::run_service;
 

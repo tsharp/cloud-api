@@ -5,16 +5,17 @@
 // pub mod unix;
 use anyhow::{Context, Result};
 use chrono::Utc;
+use cloudapi_sdk::client::CloudApiClient;
+use cloudapi_sdk::model::extension::{ExtensionState, ExtensionStatus};
 use sha2::{Digest, Sha256};
 use tokio::{select, signal, process::Command};
 use tokio_util::sync::CancellationToken;
 use std::{fs, path::Path, path::PathBuf};
 use std::fs::File;
 use std::io::BufReader;
-use crate::config::{ExtensionState, ExtensionStatus, InstallrConfig};
+use crate::config::InstallrConfig;
 use crate::constants;
 use crate::extension::ExtensionRunLog;
-use crate::metaserver::client::MetaServerClient;
 use zip::ZipArchive;
 
 mod setup;
@@ -84,8 +85,8 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
     Ok(())
 }
 
-async fn pull_latest_extension_states(config_file: &str) -> Result<Vec<ExtensionState>> {
-    MetaServerClient::new(constants::CLOUD_METADATA_V1_ENDPOINT)
+async fn pull_latest_extension_states() -> Result<Vec<ExtensionState>> {
+    CloudApiClient::new(constants::CLOUD_METADATA_V1_ENDPOINT)
         .get_extensions()
         .await
         .context("Failed to pull latest extension data")
@@ -103,7 +104,7 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
         interval.tick().await;
 
-        let extension_states = pull_latest_extension_states(path.as_path().to_str().unwrap())
+        let extension_states = pull_latest_extension_states()
             .await;
 
         match std::fs::read_to_string(&path) {
