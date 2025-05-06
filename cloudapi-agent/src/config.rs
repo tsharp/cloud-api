@@ -5,15 +5,15 @@ use serde::{Deserialize, Serialize};
 use crate::constants;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct InstallrConfig {
+pub struct AgentConfig {
     pub cloudapi_endpoint: String,
     pub package_cache: String,
     pub extensions: Vec<ExtensionState>,
 }
 
-impl InstallrConfig {
+impl AgentConfig {
     pub fn default() -> Self {
-        InstallrConfig {
+        AgentConfig {
             cloudapi_endpoint: constants::CLOUD_METADATA_V1_ENDPOINT.to_string(),
             package_cache: format!("{}\\package-cache", constants::DEFAULT_CLOUD_API_ROOT_DIR),
             extensions: vec![],

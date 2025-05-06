@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
 }
 
 fn check_system_configuration() -> bool {
-    let config_file = format!("{}/installr.config.json", constants::DEFAULT_CLOUD_API_ROOT_DIR);
+    let config_file = format!("{}/agent.config.json", constants::DEFAULT_CLOUD_API_ROOT_DIR);
     tracing::info!("Checking for service configuration at: {}", config_file);
 
     if std::path::Path::new(&config_file).exists() {

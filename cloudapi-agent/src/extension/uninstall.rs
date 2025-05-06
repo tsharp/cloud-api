@@ -3,10 +3,10 @@ use cloudapi_sdk::model::extension::{ExtensionState, ExtensionStatus};
 use tokio::process::Command;
 use std::path::PathBuf;
 use std::{fs, path::Path};
-use crate::config::InstallrConfig;
+use crate::config::AgentConfig;
 use crate::constants;
 
-pub async fn uninstall_extensions(config: &InstallrConfig) -> Result<()> {
+pub async fn uninstall_extensions(config: &AgentConfig) -> Result<()> {
     for state in config.get_extensions() 
     {
         if state.status == ExtensionStatus::Uninstalling 
@@ -108,7 +108,7 @@ async fn uninstall_extension(state: &ExtensionState) -> Result<()> {
  * 
  * Note this function does not call the uninstall script for the extensions, it simply removes the directory.
  */
-fn clean_extension_dir(config: &InstallrConfig) -> Result<()> {
+fn clean_extension_dir(config: &AgentConfig) -> Result<()> {
     // Check for any extensions that are not in the config but are installed
     let installed_extensions: Vec<String> = fs::read_dir(format!("{}\\extensions", constants::DEFAULT_CLOUD_API_ROOT_DIR))?
         .filter_map(|entry| entry.ok())

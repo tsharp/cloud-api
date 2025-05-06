@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use std::{fs, path::Path, path::PathBuf};
 use std::fs::File;
 use std::io::BufReader;
-use crate::config::InstallrConfig;
+use crate::config::AgentConfig;
 use crate::constants;
 use crate::extension::ExtensionRunLog;
 use zip::ZipArchive;
@@ -29,7 +29,7 @@ pub async fn run_service() -> Result<()> {
     setup::create_application_data_dir(constants::DEFAULT_CLOUD_API_ROOT_DIR)?;
 
     // Example config file path
-    let config_file = format!("{}/installr.config.json", constants::DEFAULT_CLOUD_API_ROOT_DIR);
+    let config_file = format!("{}/agent.config.json", constants::DEFAULT_CLOUD_API_ROOT_DIR);
 
     // Ensure config file exists
     setup::create_default_config_file_if_missing(config_file.as_str())?;
@@ -85,7 +85,7 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
     Ok(())
 }
 
-async fn pull_latest_extension_states(config: &InstallrConfig) -> Result<Vec<ExtensionState>> {
+async fn pull_latest_extension_states(config: &AgentConfig) -> Result<Vec<ExtensionState>> {
     CloudApiClient::new(config.get_cloudapi_endpoint())
         .get_extensions()
         .await
@@ -106,7 +106,7 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
         match std::fs::read_to_string(&path) {
             Ok(contents) => {
-                match serde_json::from_str::<InstallrConfig>(&contents) {
+                match serde_json::from_str::<AgentConfig>(&contents) {
                     Ok(config) => {
                         tracing::info!("Reloaded config. Starting reconciliation...");
                         let mut config = config;
@@ -146,7 +146,7 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
     }
 }
 
-async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
+async fn reconcile_extensions(config: &AgentConfig) -> Result<()> {
     for extension in config.get_extensions() {
         tracing::info!(">> Reconciling extension: {} (version: {})", extension.get_package_id(), extension.version);
 
