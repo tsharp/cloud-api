@@ -32,3 +32,6 @@ windows = { version = "0.56", features = ["Win32_Foundation", "Win32_Storage_Fil
 [dev-dependencies]
 
 [features]
+
+[target.x86_64-unknown-linux]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -25,15 +25,6 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Add musl target
-      run: rustup target add x86_64-unknown-linux-musl
-
-    - name: Build static binary (musl)
-      run: cargo build --release --target x86_64-unknown-linux-musl
-
-    - name: Run tests (optional)
-      run: cargo test --release --target x86_64-unknown-linux-musl
-
     - name: Build project
       run: cargo build --release
 
@@ -44,7 +35,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: cloudapi-agent
-        path: target/x86_64-unknown-linux-musl/release/cloudapi-agent
+        path: target/release/cloudapi-agent
 
   # build-windows:
   #   runs-on: windows-latest
