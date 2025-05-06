@@ -85,8 +85,8 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
     Ok(())
 }
 
-async fn pull_latest_extension_states() -> Result<Vec<ExtensionState>> {
-    CloudApiClient::new(constants::CLOUD_METADATA_V1_ENDPOINT)
+async fn pull_latest_extension_states(config: &InstallrConfig) -> Result<Vec<ExtensionState>> {
+    CloudApiClient::new(config.get_cloudapi_endpoint())
         .get_extensions()
         .await
         .context("Failed to pull latest extension data")
@@ -104,15 +104,15 @@ async fn poll_and_reconcile_config(path: &str, interval_secs: u64, cancellation_
 
         interval.tick().await;
 
-        let extension_states = pull_latest_extension_states()
-            .await;
-
         match std::fs::read_to_string(&path) {
             Ok(contents) => {
                 match serde_json::from_str::<InstallrConfig>(&contents) {
                     Ok(config) => {
                         tracing::info!("Reloaded config. Starting reconciliation...");
                         let mut config = config;
+
+                        let extension_states = pull_latest_extension_states(&config)
+                            .await;
 
                         if extension_states.is_ok() {
                             tracing::info!("Updating config with latest extension states...");
@@ -152,7 +152,7 @@ async fn reconcile_extensions(config: &InstallrConfig) -> Result<()> {
 
         if needs_update(extension).await? {
             tracing::info!("Extension {} needs update or install.", extension.get_package_id());
-            let result = install_or_update_extension(extension, config.get_package_endpoint(), config.get_package_cache()).await;
+            let result = install_or_update_extension(extension, config.get_package_endpoint().as_str(), config.get_package_cache()).await;
             
             if let Err(e) = result {
                 tracing::error!("Failed to install/update extension {}: {:?}", extension.get_package_id(), e);

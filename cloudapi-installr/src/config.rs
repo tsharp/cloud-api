@@ -6,7 +6,7 @@ use crate::constants;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InstallrConfig {
-    pub package_endpoint: String,
+    pub cloudapi_endpoint: String,
     pub package_cache: String,
     pub extensions: Vec<ExtensionState>,
 }
@@ -14,14 +14,22 @@ pub struct InstallrConfig {
 impl InstallrConfig {
     pub fn default() -> Self {
         InstallrConfig {
-            package_endpoint: format!("{}/packages", constants::CLOUD_METADATA_V1_ENDPOINT),
+            cloudapi_endpoint: constants::CLOUD_METADATA_V1_ENDPOINT.to_string(),
             package_cache: format!("{}\\package-cache", constants::DEFAULT_CLOUD_API_ROOT_DIR),
             extensions: vec![],
         }
     }
 
-    pub fn get_package_endpoint(&self) -> &String {
-        &self.package_endpoint
+    pub fn get_cloudapi_endpoint(&self) -> &String {
+        &self.cloudapi_endpoint
+    }
+
+    pub fn get_package_endpoint(&self) -> String {
+        format!(
+            "{}/{}",
+            self.cloudapi_endpoint,
+            "package"
+        )
     }
 
     pub fn get_package_cache(&self) -> &String {

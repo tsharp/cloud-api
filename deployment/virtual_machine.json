@@ -1,0 +1,27 @@
+{
+    "apiVersion": "ext.api.cloud-api.dev/v1alpha1",
+    "kind": "ResourceDefinition",
+    "metadata": {
+        "name": "virtualmachine.api.cloud-api.dev",
+        "namespace": "global",
+        "resourceVersion": "v1alpha1"
+    },
+    "spec": {
+        "group": "api.cloud-api.dev",
+        "names": {
+            "kind": "VirtualMachine",
+            "singular": "VirtualMachine",
+            "plural": "VirtualMachines",
+            "shortNames": [
+                "vm"
+            ]
+        },
+        "scope": "Namespaced",
+        "versions": [
+            {
+                "name": "v1alpha1",
+                "enabled": true
+            }
+        ]
+    }
+}
