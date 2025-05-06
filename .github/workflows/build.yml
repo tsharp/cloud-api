@@ -8,6 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  OPENSSL_STATIC: "1"
+  OPENSSL_NO_VENDOR: "0"
 
 jobs:
   build-linux:
@@ -15,6 +17,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+
+    - name: Install OpenSSL and pkg-config
+      run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
     - name: Install stable toolchain
       uses: actions-rs/toolchain@v1
