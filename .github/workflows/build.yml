@@ -16,13 +16,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Build project
       run: cargo build --release
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --release
 
-    - name: Upload Windows Binary
+    - name: Upload Linux Binary
       uses: actions/upload-artifact@v4
       with:
         name: installr-linux
@@ -34,11 +43,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
     - name: Build project (Windows)
       run: cargo build --release
 
     - name: Run tests (optional)
-      run: cargo test
+      run: cargo test --release
 
     - name: Upload Windows Binary
       uses: actions/upload-artifact@v4

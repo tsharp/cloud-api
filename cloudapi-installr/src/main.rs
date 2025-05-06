@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
         tracing::info!("Please run the installer to set up the service.");
         tracing::info!("Press Ctrl-C to exit.");
         
-        service::wait_for_shutdown_signal().await;
+        service::wait_for_shutdown_signal().await?;
         tracing::info!("Shutdown signal received. Exiting...");
 
         return Ok(());
