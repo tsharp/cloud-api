@@ -16,6 +16,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+        target: x86_64-unknown-linux-musl
+
     - name: Cache
       uses: actions/cache@v4
       with:
@@ -26,7 +34,7 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build project
-      run: cargo build --release --target=x86_64-unknown-linux-gnu
+      run: cargo build --release --target=x86_64-unknown-linux-musl
 
     - name: Run tests
       run: cargo test --release
@@ -35,7 +43,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: cloudapi-agent
-        path: target/x86_64-unknown-linux-gnu/release/cloudapi-agent
+        path: target/x86_64-unknown-linux-musl/release/cloudapi-agent
 
   # build-windows:
   #   runs-on: windows-latest
