@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Rust
+      uses: actions/setup-rust@v1
+      with:
+        rust-version: stable
+
+    - name: Build project
+      run: cargo build --release
+
+    - name: Run tests
+      run: cargo test
+
+    - name: Upload Windows Binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: installr-linux
+        path: target/release/cloudapi-installr
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Rust
+      uses: actions/setup-rust@v1
+      with:
+        rust-version: stable
+
+    - name: Build project (Windows)
+      run: cargo build --release
+
+    - name: Run tests (optional)
+      run: cargo test
+
+    - name: Upload Windows Binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: installr-windows
+        path: target/release/cloudapi-installr.exe
