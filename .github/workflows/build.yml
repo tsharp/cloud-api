@@ -34,7 +34,7 @@ jobs:
     - name: Upload Linux Binary
       uses: actions/upload-artifact@v4
       with:
-        name: installr-linux
+        name: cloudapi-installr
         path: target/release/cloudapi-installr
 
   build-windows:
@@ -61,5 +61,5 @@ jobs:
     - name: Upload Windows Binary
       uses: actions/upload-artifact@v4
       with:
-        name: installr-windows
+        name: cloudapi-installr.exe
         path: target/release/cloudapi-installr.exe
